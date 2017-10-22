@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+
+<meta charset="utf-8">
+
+<style>
+.container {
+  width: 95%;
+  margin: 5px auto;
+}
+</style>
+
+<html>
+
+<head>
+<title>UFC Events by PPV Buys</title>
+</head>
+
+<body>
+  <canvas id="legend" style="margin-top: 0px; " width="225" height="145"> </canvas>
+
+  <svg width="760" height="550" id="yes" font-family="sans-serif" style="margin-left: 50px;" font-size="10" text-anchor="middle">
+  </svg>
+
+  <br/><br/><br/><br/><br/><br/>
+
+  <div class="container">
+    <div>
+      <canvas id="myChart"></canvas>
+    </div>
+  </div>
+
+</body>
+</html>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script type="text/javascript" src="data.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<script>
+
+// Primary Reference: https://www.sitepoint.com/introduction-chart-js-2-0-six-examples/
+var ctx = document.getElementById('myChart').getContext('2d');
+
+// Specific Reference: http://kushagragour.in/blog/2013/06/getting-started-with-chartjs/
+Array.prototype.mapProperty = function(property) {
+	return this.map(function (obj) {
+        return obj[property];
+	});
+};
+
+var myChart = new Chart(ctx, {
+  type: 'line',
+
+  data: {
+    labels: myData.mapProperty("UFC_Number"),
+    datasets: [{
+      label: "PPV Buys",
+      data:  myData.mapProperty("PPV"),
+      backgroundColor: "rgba(153,255,51,0.4)"
+    },]
+  },
+
+  options: {
+    scales: {
+      yAxes: [{
+        scaleLabel: {
+          display: true,
+          labelString: 'Number of PPV Buys'
+        }
+      }],
+      xAxes: [{
+        scaleLabel: {
+          display: true,
+          labelString: 'UFC Events'
+        }
+      }]
+    },
+    title: {
+      display: true,
+      text: 'UFC Events by PPV Buys'
+    },
+  }
+
+});
+
+</script>
+
+
+<script id="run">
+// Primary Reference: https://bl.ocks.org/mbostock/4063269
+// I kept the structure of it but rewrote alot of the guts.
+
+var svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var bubble = d3.pack()
+    .size([width, height])
+    .padding(1.5);
+
+
+d3.csv("ufc_ppv_buys.csv", function(d) {
+  d.PPV = +d.PPV;
+
+  var root = d3.hierarchy({children: d})
+      .sum(function(d) { return (d.PPV); })
+      .each(function(d) {
+          var id = d.data.PPV;
+
+          if (id >= 1000000) {
+            d.package = "#fc0000";
+          } else {
+            d.package = "#0060fc";
+          }
+          d.class = id;
+      });
+
+  var node = svg.selectAll(".node")
+    .data(bubble(root).leaves())
+    .enter().append("g")
+      .attr("class", "node")
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+
+  node.append("circle")
+      .attr("id", function(d) { return d.id; })
+      .attr("r", function(d) { return d.r; })
+      .style("fill", function(d) { return d.package; });
+
+  node.append("text")
+        .attr("clip-path", function(d) { return "url(#clip-" + d.data.UFC_Number + ")"; })
+      .selectAll("tspan")
+      .data(function(d) { return d.data.UFC_Number; })
+      .enter().append("tspan")
+        .attr("x", 0)
+        .attr("y", function(d, i, nodes) { return 13 + (i - nodes.length / 2 - 0.5) * 10; });
+
+  node.append("title")
+      .text(function(d) { return "UFC " + d.data.UFC_Number + "\n" +
+      d.data.Opponent1 + " vs. " + d.data.Opponent2 + "\n" +
+      "PPV Buys: " + d.data.PPV + "\n" +
+      "Date: " + d.data.Month + "-" + d.data.Day + "-" + d.data.Year; });
+});
+
+</script>
+
+
+<script>
+// No references for this code
+  var c = document.getElementById("legend");
+
+  var title = c.getContext("2d");
+  title.font = "20px Calibri";
+  title.fillText("UFC Events by PPV Buys",20,50);
+
+  var txtChamp = c.getContext("2d");
+  txtChamp.font = "16px Calibri";
+  txtChamp.fillText(" >= 1 million",45,85);
+
+  var txtDefender = c.getContext("2d");
+  txtDefender.font = "16px Calibri";
+  txtDefender.fillText(" < 1 million",45,115);
+
+  var txtEventNums = c.getContext("2d");
+  title.font = "16px Calibri";
+  title.fillText("UFC Events: 33-214",20,142);
+
+  var champ = c.getContext("2d");
+  champ.fillStyle = "#fc0000";
+  champ.fillRect(20, 70, 20, 20);
+  champ.stroke();
+
+  var defender = c.getContext("2d");
+  defender.fillStyle = "#0060fc";
+  defender.fillRect(20, 100, 20, 20);
+  defender.stroke();
+
+</script>

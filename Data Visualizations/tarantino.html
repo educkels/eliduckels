@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<meta charset="utf-8">
+
+<style>
+.container {
+  width: 95%;
+  margin: 5px auto;
+}
+.clock{
+  font-size: 36px;
+}
+</style>
+
+<html>
+
+<head>
+<title>Tarantino</title>
+</head>
+
+<body >
+  <select id="movieSelect">
+    <option value="dogs">Reservoir Dogs</option>
+    <option value="pulp">Pulp Fiction</option>
+    <option value="kill">Kill Bill: Vol. 1</option>
+    <option value="kill2">Kill Bill: Vol. 2</option>
+    <option value="basterds">Inglorious Basterds</option>
+    <option value="django">Django Unchained</option>
+    <option value="jackie">Jackie Brown</option>
+  </select>
+
+  <button id="btnStart"  onclick="start()">Start</button>
+  <button id="btnStop" hidden="true" onclick="stop()">Stop</button>
+  <button id="btnPause" hidden="true" onclick="pause()">Pause</button>
+  <button id="btnResume" hidden="true" onclick="resume()">Resume</button><br/>
+
+  <!-- Souce: -->
+  <label class="clock" id="minutes">00</label>
+  <label class="clock">:</label>
+  <label class="clock" id="seconds">00</label>
+
+  <svg width="760" height="550" id="yes" font-family="sans-serif" style="margin-top: 10px; margin-left: 50px; border: 3px solid black" font-size="10" text-anchor="middle"> </svg>
+  <canvas id="endResults" hidden="true" style="margin-left: 5px; border: 3px solid black" width="260" height="300"> </canvas>
+  <canvas id="legend" style="margin-left: 5px; border: 3px solid black" width="260" height="300"> </canvas>
+
+</body>
+</html>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<script type="text/javascript">
+var timer;
+var movies = [];
+var tempData;
+var frequency = [{}];
+var uniqueWords = [];
+var wordsAndTimes = [];
+var selection;
+var isPaused = false;
+var runTimes =  {"Reservoir Dogs" : 5940,
+  "Kill Bill: Vol. 1" : 7140,
+  "Kill Bill: Vol. 2" : 8280,
+  "Django Unchained" : 9900,
+  "Jackie Brown" : 9600,
+  "Pulp Fiction" : 10680,
+  "Inglorious Basterds" : 9180}
+
+function start(){
+  // Grab labels for clock Source:
+  var minutesLabel = document.getElementById("minutes");
+  var secondsLabel = document.getElementById("seconds");
+  var totalSeconds = 0;
+
+  //Disable/Enable buttons
+  document.getElementById("btnStart").disabled = true;
+
+  document.getElementById("btnStop").disabled = false;
+  document.getElementById("btnStop").hidden = false;
+
+  document.getElementById("btnPause").disabled = false;
+  document.getElementById("btnPause").hidden = false;
+
+  //Timer will "tick" every second
+  timer = setInterval(tick, 1000);
+
+  // Clear svg
+  svg.selectAll("*").remove();
+
+  // Read in data
+  fileRead();
+
+  //Shift frequency to exclude initial json stuff
+  frequency.shift();
+
+  // Runs every second.
+  function tick(){
+    // Check if paused
+    if(!isPaused){
+      // If totalSeconds >= the run time of the move, stop.
+      if(totalSeconds >= runTimes[selection]){
+        stop();
+        displayEnd();
+        return;
+      }
+
+      // Adds to time, updates clock. Source:
+      totalSeconds = totalSeconds + 100;
+      secondsLabel.innerHTML = pad(totalSeconds%60);
+      minutesLabel.innerHTML = pad(parseInt(totalSeconds/60));
+
+      //Builds bubble data, and builds actual chart.
+      for(var a = 0; a < wordsAndTimes.length; a++){
+        if((wordsAndTimes[a+1]) <= totalSeconds){
+          buildBubbleData(totalSeconds);
+          svg.selectAll("*").remove();
+          bubbleChart(frequency);
+        }
+      }
+    }
+  }
+
+  // Source:
+  function pad(val){
+   var valString = val + "";
+   if(valString.length < 2){
+       return "0" + valString;
+   }else{
+       return valString;
+   }
+  }
+}
+
+function stop(){
+  document.getElementById("btnStop").disabled = true;
+  document.getElementById("btnStart").disabled = false;
+  document.getElementById("btnPause").disabled = true;
+  clearInterval(timer);
+  frequency = [{}];
+  movies = [];
+  uniqueWords = [];
+  wordsAndTimes = [];
+}
+
+function pause(){
+  document.getElementById("btnResume").hidden = false;
+  document.getElementById("btnStop").disabled = true;
+  isPaused = true;
+}
+
+function resume(){
+  isPaused = false;
+  document.getElementById("btnResume").hidden = true;
+  document.getElementById("btnStop").disabled = false;
+}
+
+function displayEnd(){
+  var swearCount = 0;
+
+  d3.csv("movie.csv", function(data) {
+    data.forEach(function(d){
+      if(d.movie == selection){
+        swearCount++;
+      }
+  });
+
+  selection = selection + "";
+  var runTimeMinutes = Math.floor(runTimes[selection]/60);
+
+  var d = document.getElementById("endResults");
+
+  var txtCount = d.getContext("2d");
+  txtCount.font = "16px Calibri";
+  txtCount.fillText("Total Count: " + swearCount,10,20);
+
+  var txtSwearRatio = d.getContext("2d");
+  txtSwearRatio.fillText("That's " + (swearCount/runTimeMinutes).toFixed(2) + " words/deaths per minute!",10,40);
+
+  var tarantino = new Image();
+  var image = d.getContext("2d");
+  tarantino.src = "http://s3.amazonaws.com/digitaltrends-uploads-prod/2017/07/Quentin-Tarantino.jpg";
+  tarantino.onload = function(){
+    image.drawImage(tarantino, 10, 60, 245, 200);
+  }
+
+  document.getElementById("endResults").hidden = false;
+  document.getElementById("legend").hidden = true;
+  });
+}
+
+// Source:
+Array.prototype.contains = function(v) {
+  for(var i = 0; i < this.length; i++) {
+      if(this[i] === v) return true;
+  }
+  return false;
+};
+
+// Source:
+Array.prototype.removeValue = function(name, value){
+ var array = $.map(this, function(v,i){
+    return v[name] === value ? null : v;
+ });
+ this.length = 0;
+ this.push.apply(this, array);
+}
+
+// Source:
+Number.prototype.before = function () {
+  var value = parseInt(this.toString().split(".")[0], 10);
+  return value ? value : 0;
+}
+
+function fileRead(){
+  d3.csv("movie.csv", function(data) {
+    cleanData(data);
+  });
+}
+
+function cleanData(data){
+ tempData = data;
+
+ var e = document.getElementById("movieSelect");
+ selection = e.options[e.selectedIndex].text;
+
+ // Find all movies that are not "selection"
+  tempData.forEach(function(d) {
+    if(d.movie != selection){
+      movies.push(d.movie);
+    };
+  });
+
+  // Remove all data that does not relate to "selection"
+  for(var i = 0; i < movies.length; i++){
+    tempData.removeValue("movie",movies[i]);
+  };
+
+  //Create array of words and corresponsing minutes_in
+  tempData.forEach(function (d){
+
+    if(!uniqueWords.contains(d.word)){
+      uniqueWords.push(d.word);
+    }
+
+    if(d.word == ""){
+      wordsAndTimes.push("death");
+    }else{
+      wordsAndTimes.push(d.word);
+    }
+    var n = +d.minutes_in
+    var y = (n.before()*60) + ((+d.minutes_in - Math.floor(+d.minutes_in))*100);
+    wordsAndTimes.push(Math.floor(y));
+  });
+}
+
+function determineFrequency(word, time){
+  var count = 0;
+  for(var w = 0; w  < wordsAndTimes.length; w++){
+    if (wordsAndTimes[w] == word && wordsAndTimes[w+1] <= time){
+      count++;
+    };
+  };
+  return count;
+}
+
+function buildBubbleData(time){
+
+  for(var t = 0; t < wordsAndTimes.length; t++){
+
+    if(wordsAndTimes[t+1] <= time){
+
+      var inArray = false;
+      var numTimes = determineFrequency(wordsAndTimes[t], time);
+
+      for (var g = 0; g < frequency.length; g++){
+        if (frequency[g].word == wordsAndTimes[t]){
+          frequency[g].numTimes = numTimes;
+          inArray = true;
+        }
+      }
+
+      if(inArray == false){
+        temp = [{
+          'word': wordsAndTimes[t],
+          'numTimes': numTimes,
+          'movie': selection
+        }];
+        frequency = frequency.concat(temp);
+      }
+    }
+  }
+}
+
+// Bubble variables
+var svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var bubble = d3.pack()
+    .size([width, height])
+    .padding(1.5);
+
+var colors = ["#430582","#6C31A0","#8797C4","#AFE0DF","#A7E8BC"];
+
+// Build bubble chart. source:
+function bubbleChart(d){
+
+  var root = d3.hierarchy({children: d})
+      .sum(function(d) { return (d.numTimes); })
+      .each(function(d) {
+          var id = d.data.numTimes;
+          var word = d.data.word + "";
+
+          if(word == "death"){
+            d.package = "#fc0000";
+          }else if(word.indexOf("shit") !== -1){
+            d.package = colors[4];
+          }else if(word.indexOf("damn") !== -1){
+            d.package = colors[3];
+          }else if(word.indexOf("dick") !== -1){
+            d.package = colors[2];
+          }else if(word.indexOf("fuck") !== -1){
+            d.package = colors[1];
+          }else{
+            d.package = colors[0];
+          }
+  });
+
+  var node = svg.selectAll(".node")
+    .data(bubble(root).leaves())
+    .enter().append("g")
+      .attr("class", "node")
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+
+  node.append("circle")
+      .attr("id", function(d) { return d.id; })
+      .attr("r", function(d) { return d.r; })
+      .style("fill", function(d) { return d.package;});
+
+  node.append("text")
+        .attr("clip-path", function(d) { return "url(#clip-" + d.data.word + ")"; })
+      .selectAll("tspan")
+      .data(function(d) { return d.data.word.split(/(?=[A-Z][^A-Z])/g); })
+      .enter().append("tspan")
+        .attr("x", 0)
+        .attr("y", function(d, i, nodes) { return 13 + (i - nodes.length / 2 - 0.5) * 10; })
+        .style("font-size", "14px")
+        .style("fill", "black")
+        .text(function(d) { return d; });
+
+  node.append("title")
+      .text(function(d) { return "Movie: " + d.data.movie + "\nWord: " + d.data.word + "\nNumber of Times: " + d.data.numTimes; });
+}
+
+// Legend
+  var c = document.getElementById("legend");
+
+  var title = c.getContext("2d");
+  title.font = "18px Calibri";
+  title.fillText("Swear Words by Tarantio Movie",10,20);
+
+  var txtCat1 = c.getContext("2d");
+  txtCat1.font = "14px Calibri";
+  txtCat1.fillText("Shit",45,55);
+
+  var txtCat2 = c.getContext("2d");
+  txtCat2.fillText("Damn",45,95);
+
+  var txtCat3 = c.getContext("2d");
+  txtCat3.fillText("Dick",45,135);
+
+  var txtCat4 = c.getContext("2d");
+  txtCat4.fillText("Fuck",45,175);
+
+  var txtCat5 = c.getContext("2d");
+  txtCat5.fillText("Other",45,215);
+
+  var txtDeath = c.getContext("2d");
+  txtDeath.fillText("Death",45,255);
+  var colors = ["#430582","#6C31A0","#8797C4","#AFE0DF","#A7E8BC"];
+
+  var cat1 = c.getContext("2d");
+  cat1.fillStyle = "#A7E8BC";
+  cat1.beginPath();
+  cat1.arc(20,50,15,0,2*Math.PI);
+  cat1.fill();
+
+  var cat2 = c.getContext("2d");
+  cat2.fillStyle = "#AFE0DF";
+  cat2.beginPath();
+  cat2.arc(20,90,15,0,2*Math.PI);
+  cat2.fill();
+
+  var cat3 = c.getContext("2d");
+  cat3.fillStyle = "#8797C4";
+  cat3.beginPath();
+  cat3.arc(20,130,15,0,2*Math.PI);
+  cat3.fill();
+
+  var cat4 = c.getContext("2d");
+  cat4.fillStyle = "#6C31A0";
+  cat4.beginPath();
+  cat4.arc(20,170,15,0,2*Math.PI);
+  cat4.fill();
+
+  var cat5 = c.getContext("2d");
+  cat5.fillStyle = "#430582";
+  cat5.beginPath();
+  cat5.arc(20,210,15,0,2*Math.PI);
+  cat5.fill();
+
+  var death = c.getContext("2d");
+  death.fillStyle = "#fc0000";
+  death.beginPath();
+  death.arc(20,250,15,0,2*Math.PI);
+  death.fill();
+
+</script>
